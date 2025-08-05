@@ -43,13 +43,13 @@ pub fn to_index(coords: &Coordinates, dimensions: &[usize]) -> usize {
 pub fn to_coords(mut index: usize, dimensions: &[usize]) -> Coordinates {
     let mut coords = vec![0; dimensions.len()];
     let mut stride = 1;
-    for (i, &dim) in dimensions.iter().enumerate() {
+    for (i, &_dim) in dimensions.iter().enumerate() {
          if i > 0 {
             stride *= dimensions[i-1];
         }
     }
 
-    for (i, &dim) in dimensions.iter().enumerate().rev() {
+    for (i, &_dim) in dimensions.iter().enumerate().rev() {
         coords[i] = index / stride;
         index %= stride;
         if i > 0 {

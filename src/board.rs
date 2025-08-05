@@ -8,7 +8,7 @@
 //! - Calculating the number of adjacent mines for each cell.
 //! - Handling the logic for revealing cells.
 
-use crate::cell::{Cell, CellKind};
+use crate::cell::{Cell, CellKind, CellState};
 use crate::coordinates::{get_neighbors, to_coords, to_index};
 use rand::seq::SliceRandom;
 
@@ -89,12 +89,64 @@ impl Board {
             cells[index].kind = CellKind::Mine;
         }
     }
+
+    /// Toggles a flag on a cell.
+    ///
+    /// # Arguments
+    ///
+    /// * `coords` - The coordinates of the cell to toggle the flag on.
+    pub fn toggle_flag(&mut self, coords: &crate::coordinates::Coordinates) {
+        let index = to_index(coords, &self.dimensions);
+        if let Some(cell) = self.cells.get_mut(index) {
+            match cell.state {
+                CellState::Hidden => cell.state = CellState::Flagged,
+                CellState::Flagged => cell.state = CellState::Hidden,
+                CellState::Revealed => (),
+            }
+        }
+    }
+
+    /// Reveals a cell.
+    ///
+    /// # Arguments
+    ///
+    /// * `coords` - The coordinates of the cell to reveal.
+    ///
+    /// # Returns
+    ///
+    /// * `true` if a mine was revealed, `false` otherwise.
+    pub fn reveal(&mut self, coords: &crate::coordinates::Coordinates) -> bool {
+        let index = to_index(coords, &self.dimensions);
+
+        // Can't reveal a flagged or already revealed cell
+        if self.cells[index].state == CellState::Flagged
+            || self.cells[index].state == CellState::Revealed
+        {
+            return false;
+        }
+
+        self.cells[index].state = CellState::Revealed;
+
+        match self.cells[index].kind {
+            CellKind::Mine => true,
+            CellKind::Empty { adjacent_mines } => {
+                if adjacent_mines == 0 {
+                    // If the cell is empty and has no adjacent mines, reveal all its neighbors
+                    let neighbors = get_neighbors(coords, &self.dimensions);
+                    for neighbor_coords in neighbors {
+                        self.reveal(&neighbor_coords);
+                    }
+                }
+                false
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cell::{Cell, CellKind};
+    use crate::cell::{Cell, CellKind, CellState};
 
     #[test]
     fn test_calculate_adjacent_mines_2d() {
@@ -139,5 +191,81 @@ mod tests {
         // Ensure mine cells are untouched
         assert_eq!(board.cells[0].kind, CellKind::Mine);
         assert_eq!(board.cells[8].kind, CellKind::Mine);
+    }
+
+    #[test]
+    fn test_toggle_flag() {
+        let mut board = Board::new(vec![2, 2], 0);
+        let coords = vec![0, 0];
+
+        // Initially hidden
+        assert_eq!(board.cells[0].state, CellState::Hidden);
+
+        // Toggle to flagged
+        board.toggle_flag(&coords);
+        assert_eq!(board.cells[0].state, CellState::Flagged);
+
+        // Toggle back to hidden
+        board.toggle_flag(&coords);
+        assert_eq!(board.cells[0].state, CellState::Hidden);
+    }
+
+    #[test]
+    fn test_reveal_mine() {
+        let mut board = Board::new(vec![2, 2], 1);
+        // Find the mine
+        let mine_index = board
+            .cells
+            .iter()
+            .position(|c| c.kind == CellKind::Mine)
+            .unwrap();
+        let mine_coords = to_coords(mine_index, &board.dimensions);
+
+        // Reveal the mine
+        let is_mine = board.reveal(&mine_coords);
+        assert!(is_mine);
+        assert_eq!(board.cells[mine_index].state, CellState::Revealed);
+    }
+
+    #[test]
+    fn test_reveal_empty_cell() {
+        let mut board = Board::new(vec![3, 3], 0);
+        board.cells[0].kind = CellKind::Mine; // Place a mine at (0,0)
+        board.calculate_adjacent_mines();
+        let coords = vec![1, 1]; // A cell with 1 adjacent mine
+
+        // Reveal the cell
+        let is_mine = board.reveal(&coords);
+        assert!(!is_mine);
+        let index = to_index(&coords, &board.dimensions);
+        assert_eq!(board.cells[index].state, CellState::Revealed);
+    }
+
+    #[test]
+    fn test_flood_fill_reveal() {
+        let mut board = Board::new(vec![3, 3], 0);
+        board.cells[0].kind = CellKind::Mine; // Mine at (0,0)
+        board.calculate_adjacent_mines();
+
+        // Reveal a cell with 0 adjacent mines
+        let coords = vec![2, 2];
+        board.reveal(&coords);
+
+        // All cells except the mine at (0,0) should be revealed.
+        // The mine is at index 0. All others should be revealed.
+        for (i, cell) in board.cells.iter().enumerate() {
+            if i == 0 {
+                // The mine should not be revealed
+                assert_ne!(cell.state, CellState::Revealed);
+            } else {
+                // All other cells should be revealed
+                assert_eq!(
+                    cell.state,
+                    CellState::Revealed,
+                    "Cell at index {} was not revealed",
+                    i
+                );
+            }
+        }
     }
 }
