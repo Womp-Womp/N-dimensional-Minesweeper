@@ -42,7 +42,7 @@ Please adhere to the standard Rust formatting and style guidelines. Run `cargo f
 
 ### 3. Write Tests
 
-For any new logic you add, please include tests. This helps ensure that your code works correctly and protects against future regressions.
+For any new logic you add, please include tests. This helps ensure that your code works correctly and protects against future regressions. All tests should be augmented, and removing any test requires a thorough explanation (including replacement test(s)).
 
 ### 4. Keep it Extensible
 
